@@ -3,7 +3,7 @@
   <v-data-table
     :headers="headers"
     :items="items"
-    :loading="loading"
+    :loading="$apollo.loading"
     class="elevation-1"
   >
     <v-progress-linear slot="progress" color="secondary" indeterminate></v-progress-linear>
@@ -13,7 +13,7 @@
         <v-edit-dialog
           :return-value.sync="props.item.name"
           lazy
-          @save="saveData(props.item)">
+          @save="saveUserData(props.item)">
             {{ props.item.name }}
             <v-text-field
               slot="input"
@@ -29,7 +29,7 @@
         <v-edit-dialog
           :return-value.sync="props.item.email"
           lazy
-          @save="saveData(props.item)">
+          @save="saveUserData(props.item)">
             {{ props.item.email }}
             <v-text-field
               slot="input"
@@ -45,7 +45,7 @@
         <v-edit-dialog
           :return-value.sync="props.item.company.name"
           lazy
-          @save="saveData(props.item)">
+          @save="saveUserData(props.item)">
             {{ props.item.company.name }}
             <v-text-field
               slot="input"
@@ -67,7 +67,16 @@
 
 <script>
 import _ from 'lodash'
+import { getUsers } from '../gql/querys'
+import { editUser } from '../gql/mutations'
+
 export default {
+  apollo: {
+    items: {
+      query: getUsers,
+      update: data => data.users
+    }
+  },
   data () {
     return {
       headers: [{
@@ -91,38 +100,50 @@ export default {
         sortable: false,
         value: 'company'
       }],
-      items: [],
       loading: false,
-      max25chars: v => v.length <= 25 || 'Use less letters!'
+      max25chars: v => v.length <= 25 || 'Use less letters!',
+      items: []
     }
-  },
-  mounted() {
-    this.getData()
   },
   methods: {
-    getData: _.debounce(async function () {
-      this._toggleLoading()
-      const d = await this.$axios.$get('https://jsonplaceholder.typicode.com/users')
-
-      this.items = d
-      this._toggleLoading()
+    getData: _.debounce(function () {
+      this.$apollo.queries.items.refetch()
     }, 200),
-    async saveData (payload) {
-      this._toggleLoading()
-      const item = await this.$axios.$put(`https://jsonplaceholder.typicode.com/users/${payload.id}`, {
-        body: JSON.stringify({ title: 'Change', userId: payload.id, ...payload })
-      })
+    saveUserData (payload) {
+      const itemsCopy = this.items
 
-      this._setItem(JSON.parse(item.body))
-      this._toggleLoading()
+      this.$apollo.mutate({
+        mutation: editUser,
+        variables: {
+          id: payload.id,
+          user: payload
+        },
+        update: (store, { data: { updateUser }}) => {
+          const data = store.readQuery({ query: getUsers })
+
+          data.users.push(updateUser)
+
+          store.writeQuery({ query: getUsers, data })
+        },
+        optimisticResponse: {
+          __typename: 'Mutation',
+          updateUser: {
+            __typename: 'UserInput',
+            id: payload.id || -1,
+            name: payload.name || '',
+            email: payload.email || '',
+            company: {
+              __typename: 'Company',
+              name: payload.company.name || ''
+            }
+          },
+        }
+      })
+      .catch(e => {
+        this.items = itemsCopy
+        console.log('error', e)
+      })
     },
-    _setItem (editedItem) {
-      const newItems = this.items.map(item => item.id === editedItem.id ? editedItem : item)
-      this.items = newItems
-    },
-    _toggleLoading() {
-      this.loading = !this.loading
-    }
   }
 }
 </script>
