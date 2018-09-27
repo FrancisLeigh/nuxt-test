@@ -100,7 +100,6 @@ export default {
         sortable: false,
         value: 'company'
       }],
-      loading: false,
       max25chars: v => v.length <= 25 || 'Use less letters!',
       items: []
     }
