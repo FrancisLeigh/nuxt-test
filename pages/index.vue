@@ -64,7 +64,6 @@
 </div>
 </template>
 
-
 <script>
 import _ from 'lodash'
 import { getUsers } from '../gql/querys'
@@ -108,10 +107,14 @@ export default {
     getData: _.debounce(function () {
       this.$apollo.queries.items.refetch()
     }, 200),
-    saveUserData (payload) {
+    async saveUserData (payload) {
       const itemsCopy = this.items
 
-      this.$apollo.mutate({
+      delete payload.__typename
+      delete payload.company.__typename
+
+      let result = await this.$apollo.mutate({
+        __typename: 'Mutation',
         mutation: editUser,
         variables: {
           id: payload.id,
@@ -120,29 +123,29 @@ export default {
         update: (store, { data: { updateUser }}) => {
           const data = store.readQuery({ query: getUsers })
 
-          data.users.push(updateUser)
+          data.users = data.users.map(usr => {
+            if (usr.id === updateUser.id) {
+              usr = Object.assign(usr, updateUser)
+            }
+            return usr
+          })
 
           store.writeQuery({ query: getUsers, data })
         },
         optimisticResponse: {
-          __typename: 'Mutation',
           updateUser: {
-            __typename: 'UserInput',
-            id: payload.id || -1,
-            name: payload.name || '',
-            email: payload.email || '',
+            __typename: 'User',
+            id: payload.id,
+            name: payload.name,
+            email: payload.email,
             company: {
               __typename: 'Company',
-              name: payload.company.name || ''
+              name: payload.company.name
             }
-          },
+          }
         }
       })
-      .catch(e => {
-        this.items = itemsCopy
-        console.log('error', e)
-      })
-    },
+    }
   }
 }
 </script>

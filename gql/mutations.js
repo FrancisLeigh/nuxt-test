@@ -1,11 +1,11 @@
 import gql from 'graphql-tag'
 
-const editUser = gql`mutation updateUser($id: ID, $user: UserInput) {
+const editUser = gql`mutation ($id: ID, $user: UserInput) {
   updateUser(id: $id, user:$user) {
     id
     name
     email
-    company{
+    company {
       name
     }
   }
